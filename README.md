@@ -654,6 +654,30 @@ curl http://localhost:8080/health
 LOG_LEVEL=debug npm start
 ```
 
+### Autotask API Rate Limits
+
+**Problem**: `429 Too Many Requests` or "thread limit exceeded" errors when Claude queries aggressively
+
+Autotask enforces **3 concurrent threads per endpoint per API tracking identifier**. When an LLM issues multiple tool calls simultaneously (e.g., searching tickets, companies, and contacts at once), requests can pile up and hit this limit.
+
+**Built-in mitigation**: The underlying `autotask-node` SDK automatically queues excess requests rather than failing immediately. Requests wait for a slot to free up, so you generally won't see 429 errors — but you may notice slower responses under heavy load.
+
+**Critical for team/multi-user deployments**: If multiple users or the MCP Gateway share the **same API credentials**, they compete for the same 3-thread budget. This can cause noticeable slowdowns and, in severe cases, queued requests that time out.
+
+**Solution — one API key per team**: Create a dedicated Autotask API user per team or integration. Each user has an independent `integrationCode` with its own thread budget:
+
+1. **Admin > Resources (Users) > Resources/Users** → Add Resource
+2. Set Security Level to **API User**
+3. Note the username, secret, and integration code
+4. Set `AUTOTASK_USERNAME`, `AUTOTASK_SECRET`, and `AUTOTASK_INTEGRATION_CODE` per team
+
+```
+Support Team  → AUTOTASK_INTEGRATION_CODE=SUPPORT_TEAM_CODE  (3 threads)
+Projects Team → AUTOTASK_INTEGRATION_CODE=PROJECTS_TEAM_CODE (3 threads, independent)
+```
+
+Additionally, Autotask limits **10,000 total requests per hour** across all integrations hitting your tenant. If you hit this limit, all integrations will start receiving 429s — another reason to use targeted queries with appropriate filters.
+
 ### MCP Client Issues
 
 **Problem**: MCP server not appearing in Claude Desktop
