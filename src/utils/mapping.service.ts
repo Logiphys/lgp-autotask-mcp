@@ -23,6 +23,8 @@ export interface MappingResult {
 
 export class MappingService {
   private static initPromise: Promise<MappingService> | null = null;
+  private refreshCompanyPromise: Promise<void> | null = null;
+  private refreshResourcePromise: Promise<void> | null = null;
 
   private cache: MappingCache;
   private autotaskService: AutotaskService;
@@ -126,19 +128,17 @@ export class MappingService {
       
       // Fallback to direct API lookup
       this.logger.debug(`Company ${companyId} not in cache, doing direct lookup`);
-      const companies = await this.autotaskService.searchCompanies({ 
-        // No searchTerm needed - we'll find by ID after getting results
-        pageSize: 0 // Get all companies to find this specific one
-      });
+      const company = await this.autotaskService.getCompany(companyId);
       
-      const company = companies.find((c: any) => c.id === companyId);
       if (company && company.companyName) {
         // Add to cache for future use
         this.cache.companies.set(companyId, company.companyName);
         return company.companyName;
       }
       
-      return null;
+      // Cache the null result to avoid repeatedly querying a missing/deleted company
+      this.cache.companies.set(companyId, 'Unknown Company');
+      return 'Unknown Company';
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(`Failed to get company name for ID ${companyId}: ${errorMessage}`);
@@ -179,7 +179,8 @@ export class MappingService {
         this.logger.debug(`Direct resource lookup failed for ${resourceId}:`, directError);
       }
       
-      return null;
+      this.cache.resources.set(resourceId, 'Unknown Resource');
+      return 'Unknown Resource';
     } catch (error) {
       this.logger.error(`Failed to get resource name for ${resourceId}:`, error);
       return null;
@@ -210,69 +211,81 @@ export class MappingService {
    * Refresh the company cache
    */
   private async refreshCompanyCache(): Promise<void> {
-    if (this.isCacheValid('companies')) {
-      return; // Cache is still valid
-    }
+    if (this.isCacheValid('companies')) return;
+    if (this.refreshCompanyPromise) return this.refreshCompanyPromise;
 
-    try {
-      this.logger.info('Refreshing company cache...');
-      
-      // Use pagination-by-default to get ALL companies for complete accuracy
-      const companies = await this.autotaskService.searchCompanies({
-        // No pageSize specified - gets ALL companies via pagination by default
-      });
+    this.refreshCompanyPromise = (async () => {
+      try {
+        this.logger.info('Refreshing company cache...');
+        
+        // Use pagination-by-default to get ALL companies for complete accuracy
+        const companies = await this.autotaskService.searchCompanies({
+          // No pageSize specified - gets ALL companies via pagination by default
+        });
 
-      this.cache.companies.clear();
-      
-      for (const company of companies) {
-        if (company.id && company.companyName) {
-          this.cache.companies.set(company.id, company.companyName);
+        this.cache.companies.clear();
+        
+        for (const company of companies) {
+          if (company.id && company.companyName) {
+            this.cache.companies.set(company.id, company.companyName);
+          }
         }
+
+        this.cache.lastUpdated.companies = new Date();
+        this.logger.info(`Company cache refreshed with ${this.cache.companies.size} entries (COMPLETE dataset)`);
+
+      } catch (error) {
+        this.logger.error('Failed to refresh company cache:', error);
+        // Don't throw error - allow fallback to direct lookup
+      } finally {
+        this.refreshCompanyPromise = null;
       }
-
-      this.cache.lastUpdated.companies = new Date();
-      this.logger.info(`Company cache refreshed with ${this.cache.companies.size} entries (COMPLETE dataset)`);
-
-    } catch (error) {
-      this.logger.error('Failed to refresh company cache:', error);
-      // Don't throw error - allow fallback to direct lookup
-    }
+    })();
+    return this.refreshCompanyPromise;
   }
 
   /**
    * Refresh resource cache safely (handle endpoint limitations)
    */
   private async refreshResourceCache(): Promise<void> {
-    try {
-      this.logger.debug('Refreshing resource cache...');
-      
-      // Note: Some Autotask instances don't support resource listing via REST API
-      // This is a known limitation - see Autotask documentation
-      const resources = await this.autotaskService.searchResources({ pageSize: 0 });
-      
-      this.cache.resources.clear();
-      for (const resource of resources) {
-        if (resource.id && resource.firstName && resource.lastName) {
-          const fullName = `${resource.firstName} ${resource.lastName}`.trim();
-          this.cache.resources.set(resource.id, fullName);
+    if (this.isCacheValid('resources')) return;
+    if (this.refreshResourcePromise) return this.refreshResourcePromise;
+
+    this.refreshResourcePromise = (async () => {
+      try {
+        this.logger.debug('Refreshing resource cache...');
+        
+        // Note: Some Autotask instances don't support resource listing via REST API
+        // This is a known limitation - see Autotask documentation
+        const resources = await this.autotaskService.searchResources({ pageSize: 0 });
+        
+        this.cache.resources.clear();
+        for (const resource of resources) {
+          if (resource.id && resource.firstName && resource.lastName) {
+            const fullName = `${resource.firstName} ${resource.lastName}`.trim();
+            this.cache.resources.set(resource.id, fullName);
+          }
         }
-      }
-      
-      this.cache.lastUpdated.resources = new Date();
-      this.logger.info(`Resource cache refreshed: ${this.cache.resources.size} resources`);
-      
-    } catch (error) {
-      // Handle the common case where Resources endpoint returns 405 Method Not Allowed
-      if ((error as any)?.response?.status === 405) {
-        this.logger.warn('Resources endpoint not available (405 Method Not Allowed) - this is common in Autotask REST API. Resource name mapping will be disabled.');
+        
+        this.cache.lastUpdated.resources = new Date();
+        this.logger.info(`Resource cache refreshed: ${this.cache.resources.size} resources`);
+        
+      } catch (error) {
+        // Handle the common case where Resources endpoint returns 405 Method Not Allowed
+        if ((error as any)?.response?.status === 405) {
+          this.logger.warn('Resources endpoint not available (405 Method Not Allowed) - this is common in Autotask REST API. Resource name mapping will be disabled.');
+          this.cache.lastUpdated.resources = new Date(); // Mark as "refreshed" to prevent retry loops
+          return;
+        }
+        
+        // Handle other resource endpoint errors gracefully
+        this.logger.error('Failed to refresh resource cache, continuing without resource names:', error);
         this.cache.lastUpdated.resources = new Date(); // Mark as "refreshed" to prevent retry loops
-        return;
+      } finally {
+        this.refreshResourcePromise = null;
       }
-      
-      // Handle other resource endpoint errors gracefully
-      this.logger.error('Failed to refresh resource cache, continuing without resource names:', error);
-      this.cache.lastUpdated.resources = new Date(); // Mark as "refreshed" to prevent retry loops
-    }
+    })();
+    return this.refreshResourcePromise;
   }
 
   /**
