@@ -1,3 +1,10 @@
+## [2.10.4](https://github.com/wyre-technology/autotask-mcp/compare/v2.10.3...v2.10.4) (2026-03-09)
+
+
+### Bug Fixes
+
+* **tests:** update expense item test assertions to match refactored API ([9affc62](https://github.com/wyre-technology/autotask-mcp/commit/9affc62d0769cb3ce7d079f1fbfae0e3c694ff2b)), closes [#27](https://github.com/wyre-technology/autotask-mcp/issues/27)
+
 ## [2.10.3](https://github.com/wyre-technology/autotask-mcp/compare/v2.10.2...v2.10.3) (2026-03-06)
 
 
