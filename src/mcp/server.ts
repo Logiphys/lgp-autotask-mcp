@@ -370,7 +370,8 @@ This server provides access to Kaseya Autotask PSA data and operations through t
 - Resources: search
 - Notes: get/search/create for tickets, projects, companies
 - Attachments: get/search ticket attachments
-- Financial: expense reports, quotes, invoices, contracts
+- Financial: expense reports, quotes, quote items (CRUD), invoices, contracts
+- Sales: opportunities, products, services, service bundles
 - Configuration items: search
 - Tasks: search, create
 - Picklists: list queues, list ticket statuses, list ticket priorities, get field info
