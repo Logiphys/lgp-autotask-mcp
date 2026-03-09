@@ -203,6 +203,124 @@ export class AutotaskToolHandler {
   }
 
   /**
+   * Elicit a company name and resolve it to a companyId.
+   * Returns the selected companyId or null if elicitation is unavailable/dismissed.
+   */
+  protected async elicitCompanyId(): Promise<number | null> {
+    if (!this.mcpServer) return null;
+
+    try {
+      // First, ask for the company name
+      const nameResult = await this.mcpServer.elicitInput({
+        message: 'No company specified. What company is this quote for?',
+        requestedSchema: {
+          type: 'object' as const,
+          properties: {
+            companyName: {
+              type: 'string' as const,
+              title: 'Company Name',
+              description: 'Enter the company name to search for',
+            }
+          },
+          required: ['companyName'],
+        }
+      });
+
+      if (nameResult.action !== 'accept' || !nameResult.content?.companyName) {
+        return null;
+      }
+
+      const searchTerm = nameResult.content.companyName as string;
+      const companies = await this.autotaskService.searchCompanies({ searchTerm });
+
+      if (companies.length === 0) {
+        this.logger.debug(`No companies found matching "${searchTerm}"`);
+        return null;
+      }
+
+      if (companies.length === 1 && companies[0].id) {
+        return companies[0].id;
+      }
+
+      // Multiple results — let user pick
+      const options: PicklistValue[] = companies
+        .filter(c => c.id != null)
+        .map(c => ({
+          value: String(c.id),
+          label: c.companyName || `Company #${c.id}`,
+        }));
+
+      const selected = await this.elicitSelection(
+        `Found ${companies.length} companies matching "${searchTerm}". Which one?`,
+        'companyId',
+        options
+      );
+
+      return selected ? Number(selected) : null;
+    } catch (error) {
+      this.logger.debug(`Company elicitation not available: ${error instanceof Error ? error.message : 'unknown'}`);
+      return null;
+    }
+  }
+
+  /**
+   * Elicit a service or product selection when creating a quote item without explicit IDs.
+   * Searches both services and products by name, presents a combined list.
+   * Returns { serviceID, productID } or null.
+   */
+  protected async elicitItemSelection(
+    name: string
+  ): Promise<{ serviceID?: number; productID?: number } | null> {
+    if (!this.mcpServer) return null;
+
+    try {
+      const [services, products] = await Promise.all([
+        this.autotaskService.searchServices({ searchTerm: name, isActive: true }),
+        this.autotaskService.searchProducts({ searchTerm: name, isActive: true }),
+      ]);
+
+      const options: PicklistValue[] = [];
+
+      for (const svc of services) {
+        if (svc.id == null) continue;
+        const price = svc.unitPrice != null ? ` ($${svc.unitPrice.toFixed(2)})` : '';
+        options.push({
+          value: `service:${svc.id}`,
+          label: `Service: ${svc.name || `#${svc.id}`}${price}`,
+        });
+      }
+
+      for (const prod of products) {
+        if (prod.id == null) continue;
+        const price = prod.unitPrice != null ? ` ($${prod.unitPrice.toFixed(2)})` : '';
+        options.push({
+          value: `product:${prod.id}`,
+          label: `Product: ${prod.name || `#${prod.id}`}${price}`,
+        });
+      }
+
+      if (options.length === 0) return null;
+
+      const selected = await this.elicitSelection(
+        `Found ${options.length} services/products matching "${name}". Which one should be used for this quote item?`,
+        'itemSelection',
+        options
+      );
+
+      if (!selected) return null;
+
+      const [type, idStr] = selected.split(':');
+      const id = Number(idStr);
+      if (type === 'service') return { serviceID: id };
+      if (type === 'product') return { productID: id };
+      return null;
+    } catch (error) {
+      this.logger.debug(`Item elicitation not available: ${error instanceof Error ? error.message : 'unknown'}`);
+      return null;
+    }
+  }
+
+  /**
    * List all available tools
    */
   async listTools(): Promise<McpTool[]> {
@@ -377,6 +495,35 @@ export class AutotaskToolHandler {
         return { result: r, message: `Found ${r.length} quotes` };
       }],
       ['autotask_create_quote', async (a) => {
+        // Elicit company if not provided
+        if (!a.companyId && this.mcpServer) {
+          try {
+            const companyId = await this.elicitCompanyId();
+            if (companyId) a = { ...a, companyId: companyId };
+          } catch { /* proceed without company */ }
+        }
+
+        // Elicit opportunity if not provided but company is known
+        if (!a.opportunityId && a.companyId && this.mcpServer) {
+          try {
+            const opps = await s.searchOpportunities({ companyId: a.companyId });
+            if (opps.length > 0) {
+              const options: PicklistValue[] = opps
+                .filter(o => o.id != null)
+                .map(o => ({
+                  value: String(o.id),
+                  label: o.title || `Opportunity #${o.id}`,
+                }));
+              const selected = await this.elicitSelection(
+                `Found ${opps.length} opportunities for this company. Which one should the quote be attached to?`,
+                'opportunityId',
+                options
+              );
+              if (selected) a = { ...a, opportunityId: Number(selected) };
+            }
+          } catch { /* proceed without opportunity */ }
+        }
+
         const id = await s.createQuote({ name: a.name, description: a.description, companyID: a.companyId, contactID: a.contactId, opportunityID: a.opportunityId, effectiveDate: a.effectiveDate, expirationDate: a.expirationDate });
         return { result: id, message: `Successfully created quote with ID: ${id}` };
       }],
@@ -426,6 +573,14 @@ export class AutotaskToolHandler {
         return { result: r, message: `Found ${r.length} quote items` };
       }],
       ['autotask_create_quote_item', async (a) => {
+        // Elicit service/product selection when no ID is provided but name is available
+        if (!a.serviceID && !a.productID && !a.serviceBundleID && a.name && this.mcpServer) {
+          try {
+            const itemChoice = await this.elicitItemSelection(a.name);
+            if (itemChoice) a = { ...a, ...itemChoice };
+          } catch { /* proceed as cost-type item */ }
+        }
+
         const id = await s.createQuoteItem({ quoteID: a.quoteId, name: a.name, description: a.description, quantity: a.quantity, unitPrice: a.unitPrice, unitCost: a.unitCost, unitDiscount: a.unitDiscount, lineDiscount: a.lineDiscount, percentageDiscount: a.percentageDiscount, isOptional: a.isOptional, serviceID: a.serviceID, productID: a.productID, serviceBundleID: a.serviceBundleID, sortOrderID: a.sortOrderID, quoteItemType: a.quoteItemType });
         return { result: id, message: `Successfully created quote item with ID: ${id}` };
       }],
