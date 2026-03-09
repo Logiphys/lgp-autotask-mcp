@@ -1517,13 +1517,28 @@ export class AutotaskService {
   async createQuoteItem(item: Partial<AutotaskQuoteItem>): Promise<number> {
     const client = await this.ensureClient();
     try {
-      // Apply defaults for required fields
+      // Auto-determine quoteItemType based on which ID field is set
+      // 1=Product, 2=Cost(charge), 3=Labor, 4=Expense, 6=Shipping, 11=Service, 12=ServiceBundle
+      let quoteItemType = item.quoteItemType;
+      if (!quoteItemType) {
+        if (item.serviceID) quoteItemType = 11;
+        else if (item.serviceBundleID) quoteItemType = 12;
+        else if (item.productID) quoteItemType = 1;
+        else if (item.chargeID) quoteItemType = 2;
+        else if (item.laborID) quoteItemType = 3;
+        else if (item.expenseID) quoteItemType = 4;
+        else if (item.shippingID) quoteItemType = 6;
+        else quoteItemType = 2; // default to Cost
+      }
+
+      // Apply defaults for required fields, let explicit item values override
       const quoteItem = {
         unitDiscount: 0,
         lineDiscount: 0,
         percentageDiscount: 0,
         isOptional: false,
-        ...item
+        ...item,
+        quoteItemType: item.quoteItemType || quoteItemType,
       };
       this.logger.debug('Creating quote item:', quoteItem);
       const result = await client.quoteItems.create(quoteItem as any);

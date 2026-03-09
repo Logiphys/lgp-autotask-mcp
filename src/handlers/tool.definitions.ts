@@ -1215,6 +1215,10 @@ export const TOOL_DEFINITIONS: McpTool[] = [
         sortOrderID: {
           type: 'number',
           description: 'Sort order for display'
+        },
+        quoteItemType: {
+          type: 'number',
+          description: 'Quote item type (auto-determined if omitted): 1=Product, 2=Cost, 3=Labor, 4=Expense, 6=Shipping, 11=Service, 12=ServiceBundle'
         }
       },
       required: ['quoteId', 'quantity']
