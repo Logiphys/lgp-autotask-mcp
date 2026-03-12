@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Bug Fixes
+
+* **tools:** return explicit "not found" error responses when API lookups return empty results to prevent LLM hallucination
+
 ## [2.11.2](https://github.com/wyre-technology/autotask-mcp/compare/v2.11.1...v2.11.2) (2026-03-12)
 
 

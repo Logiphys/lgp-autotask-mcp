@@ -1055,6 +1055,43 @@ export class AutotaskToolHandler {
   }
 
   /**
+   * Build a human-readable "not found" error message from the tool name and arguments.
+   * Returns null if the result is NOT empty (i.e. no error needed).
+   */
+  private buildNotFoundMessage(name: string, args: Record<string, any>, result: any): string | null {
+    // Single-entity "get" tools: result is null/undefined
+    const isGetTool = name.startsWith('autotask_get_');
+    if (isGetTool && (result === null || result === undefined)) {
+      const entityLabel = name
+        .replace('autotask_get_', '')
+        .replace(/_/g, ' ');
+      // Try to identify the ID arg used
+      const idArg = Object.entries(args).find(([k]) =>
+        /id$/i.test(k)
+      );
+      const idInfo = idArg ? ` with ${idArg[0]} ${idArg[1]}` : '';
+      return `No ${entityLabel} found${idInfo}. Verify the ID is correct.`;
+    }
+
+    // Search tools: result is an empty array
+    const isSearchTool = name.startsWith('autotask_search_') || name === 'autotask_search_tickets';
+    if (isSearchTool && Array.isArray(result) && result.length === 0) {
+      const entityLabel = name
+        .replace('autotask_search_', '')
+        .replace(/_/g, ' ');
+      // Build a summary of the search criteria
+      const criteria = Object.entries(args)
+        .filter(([, v]) => v !== undefined && v !== null && v !== '')
+        .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+        .join(', ');
+      const criteriaInfo = criteria ? `: ${criteria}` : '';
+      return `No ${entityLabel} found matching search criteria${criteriaInfo}. The search returned zero results — do not guess or fabricate data.`;
+    }
+
+    return null;
+  }
+
+  /**
    * Call a tool with the given arguments
    */
   async callTool(name: string, args: Record<string, any>): Promise<McpToolResult> {
@@ -1065,6 +1102,16 @@ export class AutotaskToolHandler {
       if (!handler) throw new Error(`Unknown tool: ${name}`);
 
       const { result, message } = await handler(args);
+
+      // Check for empty/not-found results and return explicit error to prevent hallucination
+      const notFoundMsg = this.buildNotFoundMessage(name, args, result);
+      if (notFoundMsg) {
+        this.logger.debug(`Not-found result for ${name}: ${notFoundMsg}`);
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: notFoundMsg, tool: name }) }],
+          isError: true,
+        };
+      }
 
       // Format and enhance response
       let responseText: string;
