@@ -4,6 +4,13 @@
 
 * **tools:** return explicit "not found" error responses when API lookups return empty results to prevent LLM hallucination
 
+## [2.11.2](https://github.com/wyre-technology/autotask-mcp/compare/v2.11.1...v2.11.2) (2026-03-12)
+
+
+### Bug Fixes
+
+* quote item creation 404 and quote creation 500 errors ([#30](https://github.com/wyre-technology/autotask-mcp/issues/30)) ([7f8e64f](https://github.com/wyre-technology/autotask-mcp/commit/7f8e64f89350dba7962a56f2fa461b7db6af26ec)), closes [wyre-technology/autotask-node#149](https://github.com/wyre-technology/autotask-node/issues/149)
+
 ## [2.11.1](https://github.com/wyre-technology/autotask-mcp/compare/v2.11.0...v2.11.1) (2026-03-10)
 
 
