@@ -1,3 +1,10 @@
+## [2.12.1](https://github.com/wyre-technology/autotask-mcp/compare/v2.12.0...v2.12.1) (2026-03-20)
+
+
+### Bug Fixes
+
+* **ci:** add multi-platform Docker builds for arm64 support ([9e565c6](https://github.com/wyre-technology/autotask-mcp/commit/9e565c6f2a046834df10b1774562867766e5a647))
+
 # [2.12.0] - 2026-03-15
 
 ### Added
