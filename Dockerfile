@@ -16,7 +16,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies (--ignore-scripts prevents 'prepare' from running before source is copied)
-RUN npm ci --ignore-scripts
+RUN npm config set prefer-offline false && npm ci --ignore-scripts
 
 # Copy source code
 COPY . .
