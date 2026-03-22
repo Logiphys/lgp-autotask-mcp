@@ -1,3 +1,15 @@
+# [2.14.0](https://github.com/wyre-technology/autotask-mcp/compare/v2.13.0...v2.14.0) (2026-03-22)
+
+
+### Features
+
+* add Service Calls CRUD support ([#38](https://github.com/wyre-technology/autotask-mcp/issues/38)) ([163d5eb](https://github.com/wyre-technology/autotask-mcp/commit/163d5eb36c6936b416d1d0fb127641975a2c4c9e))
+
+
+### Reverts
+
+* remove arm64 platform and QEMU, keep linux/amd64 only ([d2f4d6a](https://github.com/wyre-technology/autotask-mcp/commit/d2f4d6a19eb729e74dd48cf6cb38c477b3f00afe))
+
 # [2.14.0] - 2026-03-22
 
 ### Added
