@@ -599,32 +599,69 @@ export class AutotaskService {
       // Prepare search body in the same format as working companies endpoint
       const searchBody: any = {};
       
-      // Ensure there's a filter - Autotask API requires a filter
-      if (!options.filter || (Array.isArray(options.filter) && options.filter.length === 0) || 
-          (!Array.isArray(options.filter) && Object.keys(options.filter).length === 0)) {
-        searchBody.filter = [
-          {
-            "op": "gte",
-            "field": "id",
-            "value": 0
-          }
-        ];
-      } else {
-        // If filter is provided as an object, convert to array format expected by API
+      // Build filters from individual parameters (like searchTickets does)
+      const filters: any[] = [];
+
+      if ((options as any).companyID !== undefined) {
+        filters.push({
+          op: 'eq',
+          field: 'companyID',
+          value: (options as any).companyID
+        });
+      }
+
+      if ((options as any).status !== undefined) {
+        filters.push({
+          op: 'eq',
+          field: 'status',
+          value: (options as any).status
+        });
+      }
+
+      if ((options as any).projectLeadResourceID !== undefined) {
+        filters.push({
+          op: 'eq',
+          field: 'projectLeadResourceID',
+          value: (options as any).projectLeadResourceID
+        });
+      }
+
+      if ((options as any).searchTerm) {
+        filters.push({
+          op: 'contains',
+          field: 'projectName',
+          value: (options as any).searchTerm
+        });
+      }
+
+      // If a pre-built filter was provided, use it (merged with individual params above)
+      if (options.filter && (
+        (Array.isArray(options.filter) && options.filter.length > 0) ||
+        (!Array.isArray(options.filter) && Object.keys(options.filter).length > 0)
+      )) {
         if (!Array.isArray(options.filter)) {
-          const filterArray = [];
           for (const [field, value] of Object.entries(options.filter)) {
-            filterArray.push({
-              "op": "eq",
-              "field": field,
-              "value": value
+            filters.push({
+              op: 'eq',
+              field: field,
+              value: value
             });
           }
-          searchBody.filter = filterArray;
         } else {
-          searchBody.filter = options.filter;
+          filters.push(...options.filter);
         }
       }
+
+      // Fall back to default filter if none specified - Autotask API requires a filter
+      if (filters.length === 0) {
+        filters.push({
+          op: 'gte',
+          field: 'id',
+          value: 0
+        });
+      }
+
+      searchBody.filter = filters;
 
       // Add other search parameters
       if (options.sort) searchBody.sort = options.sort;
