@@ -1701,6 +1701,62 @@ export const TOOL_DEFINITIONS: McpTool[] = [
     }
   },
 
+  // Phase tools
+  {
+    name: 'autotask_list_phases',
+    description: 'List phases for a project in Autotask',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectID: {
+          type: 'number',
+          description: 'Project ID to list phases for'
+        },
+        pageSize: {
+          type: 'number',
+          description: 'Results per page (default: 25, max: 100)',
+          minimum: 1,
+          maximum: 100
+        }
+      },
+      required: ['projectID']
+    }
+  },
+  {
+    name: 'autotask_create_phase',
+    description: 'Create a new phase in an Autotask project',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectID: {
+          type: 'number',
+          description: 'Project ID for the phase'
+        },
+        title: {
+          type: 'string',
+          description: 'Phase title'
+        },
+        description: {
+          type: 'string',
+          description: 'Phase description'
+        },
+        startDate: {
+          type: 'string',
+          description: 'Phase start date (ISO format)'
+        },
+        dueDate: {
+          type: 'string',
+          description: 'Phase due date (ISO format)'
+        },
+        estimatedHours: {
+          type: 'number',
+          description: 'Estimated hours for the phase'
+        }
+      },
+      required: ['projectID', 'title']
+    }
+  },
+
   // Picklist / Queue tools
   {
     name: 'autotask_list_queues',
@@ -1737,7 +1793,7 @@ export const TOOL_DEFINITIONS: McpTool[] = [
       properties: {
         entityType: {
           type: 'string',
-          description: 'The Autotask entity type (e.g., "Tickets", "Companies", "Contacts", "Projects")'
+          description: 'The Autotask entity type (e.g., "Tickets", "Companies", "Contacts", "Projects", "ProjectTasks", "TicketNotes"). Note: project tasks use "ProjectTasks" (or "Tasks" which auto-maps). See Autotask REST API entity names.'
         },
         fieldName: {
           type: 'string',
@@ -2495,8 +2551,8 @@ export const TOOL_CATEGORIES: Record<string, { description: string; tools: strin
     tools: ['autotask_search_tickets', 'autotask_get_ticket_details', 'autotask_create_ticket', 'autotask_update_ticket', 'autotask_get_ticket_note', 'autotask_search_ticket_notes', 'autotask_create_ticket_note', 'autotask_get_ticket_attachment', 'autotask_search_ticket_attachments', 'autotask_get_ticket_charge', 'autotask_search_ticket_charges', 'autotask_create_ticket_charge', 'autotask_update_ticket_charge', 'autotask_delete_ticket_charge']
   },
   projects: {
-    description: 'Search and create projects, tasks, and project notes',
-    tools: ['autotask_search_projects', 'autotask_create_project', 'autotask_search_tasks', 'autotask_create_task', 'autotask_get_project_note', 'autotask_search_project_notes', 'autotask_create_project_note']
+    description: 'Search and create projects, tasks, phases, and project notes',
+    tools: ['autotask_search_projects', 'autotask_create_project', 'autotask_search_tasks', 'autotask_create_task', 'autotask_list_phases', 'autotask_create_phase', 'autotask_get_project_note', 'autotask_search_project_notes', 'autotask_create_project_note']
   },
   time_and_billing: {
     description: 'Time entries, billing items, and expense management',

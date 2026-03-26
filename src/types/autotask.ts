@@ -174,6 +174,21 @@ export interface AutotaskTask {
   [key: string]: any;
 }
 
+export interface AutotaskPhase {
+  id?: number;
+  projectID?: number;
+  title?: string;
+  description?: string;
+  startDate?: string;
+  dueDate?: string;
+  estimatedHours?: number;
+  sortOrder?: number;
+  scheduled?: boolean;
+  createDate?: string;
+  lastActivityDateTime?: string;
+  [key: string]: any;
+}
+
 export interface AutotaskTicketNote {
   id?: number;
   ticketID?: number;

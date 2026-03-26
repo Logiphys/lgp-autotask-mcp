@@ -34,7 +34,8 @@ import {
   AutotaskTicketCharge,
   AutotaskServiceCall,
   AutotaskServiceCallTicket,
-  AutotaskServiceCallTicketResource
+  AutotaskServiceCallTicketResource,
+  AutotaskPhase
 } from '../types/autotask';
 import { McpServerConfig } from '../types/mcp';
 import { Logger } from '../utils/logger';
@@ -1064,11 +1065,16 @@ export class AutotaskService {
 
   async createTask(task: Partial<AutotaskTask>): Promise<number> {
     const client = await this.ensureClient();
-    
+
     try {
       this.logger.debug('Creating task:', task);
-      const result = await client.tasks.create(task as any);
-      const taskId = (result.data as any)?.itemId ?? (result.data as any)?.id;
+      if (!task.projectID) {
+        throw new Error('projectID is required to create a task');
+      }
+      // Autotask REST API requires tasks to be created via POST /Projects/{projectID}/Tasks
+      const axiosInstance = (client as any).axios;
+      const response = await axiosInstance.post(`/Projects/${task.projectID}/Tasks`, task);
+      const taskId = response.data?.itemId ?? response.data?.id;
       this.logger.info(`Task created with ID: ${taskId}`);
       return taskId;
     } catch (error) {
@@ -1079,13 +1085,57 @@ export class AutotaskService {
 
   async updateTask(id: number, updates: Partial<AutotaskTask>): Promise<void> {
     const client = await this.ensureClient();
-    
+
     try {
       this.logger.debug(`Updating task ${id}:`, updates);
-      await client.tasks.update(id, updates as any);
+      if (!updates.projectID) {
+        throw new Error('projectID is required to update a task');
+      }
+      // Autotask REST API requires PATCH on collection endpoint: /Projects/{projectID}/Tasks
+      // with the task ID in the body, not in the URL
+      const axiosInstance = (client as any).axios;
+      await axiosInstance.patch(`/Projects/${updates.projectID}/Tasks`, { id, ...updates });
       this.logger.info(`Task ${id} updated successfully`);
     } catch (error) {
       this.logger.error(`Failed to update task ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // Phase management
+  async createPhase(phase: Partial<AutotaskPhase>): Promise<number> {
+    const client = await this.ensureClient();
+
+    try {
+      this.logger.debug('Creating phase:', phase);
+      if (!phase.projectID) {
+        throw new Error('projectID is required to create a phase');
+      }
+      const axiosInstance = (client as any).axios;
+      const response = await axiosInstance.post(`/Projects/${phase.projectID}/Phases`, phase);
+      const phaseId = response.data?.itemId ?? response.data?.id;
+      this.logger.info(`Phase created with ID: ${phaseId}`);
+      return phaseId;
+    } catch (error) {
+      this.logger.error('Failed to create phase:', error);
+      throw error;
+    }
+  }
+
+  async searchPhases(projectID: number, options: AutotaskQueryOptions = {}): Promise<AutotaskPhase[]> {
+    const client = await this.ensureClient();
+
+    try {
+      this.logger.debug(`Searching phases for project ${projectID}:`, options);
+      const axiosInstance = (client as any).axios;
+      const response = await axiosInstance.get(`/Projects/${projectID}/Phases`, {
+        params: { pageSize: options.pageSize || 25 }
+      });
+      const phases = response.data?.items || response.data || [];
+      this.logger.info(`Retrieved ${phases.length} phases for project ${projectID}`);
+      return phases;
+    } catch (error) {
+      this.logger.error(`Failed to search phases for project ${projectID}:`, error);
       throw error;
     }
   }

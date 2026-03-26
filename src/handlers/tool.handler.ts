@@ -899,6 +899,14 @@ export class AutotaskToolHandler {
         const id = await s.createTask(taskData); return { result: id, message: `Successfully created task with ID: ${id}` };
       }],
 
+      // Phases
+      ['autotask_list_phases', async (a) => {
+        const r = await s.searchPhases(a.projectID, { pageSize: a.pageSize }); return { result: r, message: `Found ${r.length} phases` };
+      }],
+      ['autotask_create_phase', async (a) => {
+        const id = await s.createPhase(a); return { result: id, message: `Successfully created phase with ID: ${id}` };
+      }],
+
       // Notes (ticket/project/company)
       ['autotask_get_ticket_note', async (a) => {
         const r = await s.getTicketNote(a.ticketId, a.noteId); return { result: r, message: 'Ticket note retrieved successfully' };
@@ -907,7 +915,12 @@ export class AutotaskToolHandler {
         const r = await s.searchTicketNotes(a.ticketId, { pageSize: a.pageSize }); return { result: r, message: `Found ${r.length} ticket notes` };
       }],
       ['autotask_create_ticket_note', async (a) => {
-        const id = await s.createTicketNote(a.ticketId, { title: a.title, description: a.description, noteType: a.noteType, publish: a.publish });
+        const id = await s.createTicketNote(a.ticketId, {
+          title: a.title || 'Note',
+          description: a.description,
+          noteType: a.noteType ?? 1,
+          publish: a.publish ?? 1
+        });
         return { result: id, message: `Successfully created ticket note with ID: ${id}` };
       }],
       ['autotask_get_project_note', async (a) => {
@@ -1123,7 +1136,17 @@ export class AutotaskToolHandler {
         return { result: priorities.map(p => ({ id: p.value, name: p.label, isActive: p.isActive })), message: `Found ${priorities.length} ticket priorities` };
       }],
       ['autotask_get_field_info', async (a) => {
-        const fields = await this.picklistCache.getFields(a.entityType);
+        // Normalize common entity type aliases to correct Autotask REST API names
+        const entityAliases: Record<string, string> = {
+          'tasks': 'ProjectTasks',
+          'task': 'ProjectTasks',
+          'projecttask': 'ProjectTasks',
+          'ticketnotes': 'TicketNotes',
+          'projectnotes': 'ProjectNotes',
+          'companynotes': 'CompanyNotes',
+        };
+        const entityType = entityAliases[a.entityType.toLowerCase()] || a.entityType;
+        const fields = await this.picklistCache.getFields(entityType);
         if (a.fieldName) {
           const field = fields.find(f => f.name.toLowerCase() === a.fieldName.toLowerCase());
           return { result: field || null, message: field ? `Field info for ${a.entityType}.${a.fieldName}` : `Field '${a.fieldName}' not found on ${a.entityType}` };
