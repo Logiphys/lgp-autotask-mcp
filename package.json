@@ -1,7 +1,7 @@
 {
-  "name": "autotask-mcp",
+  "name": "@lgp/autotask-mcp",
   "version": "2.16.0",
-  "description": "MCP (Model Context Protocol) server for Kaseya Autotask PSA integration",
+  "description": "LGP fork: MCP (Model Context Protocol) server for Kaseya Autotask PSA integration with rate limiting, circuit breaker, and response compaction",
   "main": "dist/entry.js",
   "bin": {
     "autotask-mcp": "./dist/entry.js"
